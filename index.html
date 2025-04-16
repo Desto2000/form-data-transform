@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RIASEC Survey Collector</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+        }
+        .container {
+            background-color: #f9f9f9;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .sequence-input {
+            font-family: monospace;
+            font-size: 16px;
+            letter-spacing: 2px;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .error {
+            color: #e74c3c;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        .success {
+            color: #27ae60;
+            font-weight: bold;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .actions {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>RIASEC Survey Data Collector</h1>
+    
+    <div class="container">
+        <div class="form-group">
+            <label for="name">Name:</label>
+            <input type="text" id="name" placeholder="Enter full name">
+        </div>
+        
+        <div class="form-group">
+            <label for="student-id">Student ID:</label>
+            <input type="text" id="student-id" placeholder="Enter student ID">
+        </div>
+        
+        <div class="form-group">
+            <label for="sequence">Response Sequence (30 digits, 1=No, 2=Yes):</label>
+            <input type="text" id="sequence" class="sequence-input" maxlength="30" placeholder="Example: 121212212121212121212121212121">
+            <div class="error" id="sequence-error"></div>
+        </div>
+        
+        <button id="add-btn">Add Survey Response</button>
+        <p id="success-message" class="success"></p>
+    </div>
+    
+    <div class="container" style="margin-top: 20px;">
+        <h2>Collected Responses <span id="count">(0)</span></h2>
+        <div style="max-height: 300px; overflow-y: auto;">
+            <table id="responses-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Student ID</th>
+                        <th>Response</th>
+                        <th>Timestamp</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Data will be added here -->
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="actions">
+            <button id="export-btn">Export to CSV</button>
+            <button id="clear-btn">Clear All Data</button>
+        </div>
+    </div>
+
+    <script>
+        // Store survey responses
+        let surveyResponses = [];
+        
+        // Load existing data from localStorage if available
+        if (localStorage.getItem('riasecSurveyData')) {
+            try {
+                surveyResponses = JSON.parse(localStorage.getItem('riasecSurveyData'));
+                updateTable();
+            } catch (e) {
+                console.error('Error loading saved data:', e);
+                localStorage.removeItem('riasecSurveyData');
+            }
+        }
+        
+        // Add event listeners
+        document.getElementById('add-btn').addEventListener('click', addResponse);
+        document.getElementById('export-btn').addEventListener('click', exportToCSV);
+        document.getElementById('clear-btn').addEventListener('click', clearData);
+        
+        // Validate sequence input (only 1 and 2, exactly 30 characters)
+        document.getElementById('sequence').addEventListener('input', function() {
+            const sequence = this.value;
+            const errorElement = document.getElementById('sequence-error');
+            
+            // Remove any non-1 or 2 characters
+            this.value = sequence.replace(/[^12]/g, '');
+            
+            // Check length
+            if (this.value.length > 0 && this.value.length !== 30) {
+                errorElement.textContent = `Response must be exactly 30 digits (currently: ${this.value.length}/30)`;
+            } else {
+                errorElement.textContent = '';
+            }
+        });
+        
+        function addResponse() {
+            const name = document.getElementById('name').value.trim();
+            const studentId = document.getElementById('student-id').value.trim();
+            const sequence = document.getElementById('sequence').value.trim();
+            const errorElement = document.getElementById('sequence-error');
+            const successElement = document.getElementById('success-message');
+            
+            // Validate inputs
+            if (!name) {
+                errorElement.textContent = 'Please enter a name';
+                return;
+            }
+            
+            if (!studentId) {
+                errorElement.textContent = 'Please enter a student ID';
+                return;
+            }
+            
+            if (!sequence || sequence.length !== 30 || !/^[12]{30}$/.test(sequence)) {
+                errorElement.textContent = 'Response sequence must be exactly 30 digits (1 or 2)';
+                return;
+            }
+            
+            // Clear any error
+            errorElement.textContent = '';
+            
+            // Create response object
+            const response = {
+                name: name,
+                studentId: studentId,
+                sequence: sequence,
+                timestamp: new Date().toISOString()
+            };
+            
+            // Add to array
+            surveyResponses.push(response);
+            
+            // Save to localStorage
+            localStorage.setItem('riasecSurveyData', JSON.stringify(surveyResponses));
+            
+            // Update the table
+            updateTable();
+            
+            // Show success message
+            successElement.textContent = 'Response saved successfully!';
+            setTimeout(() => {
+                successElement.textContent = '';
+            }, 3000);
+            
+            // Clear form for next entry
+            document.getElementById('name').value = '';
+            document.getElementById('student-id').value = '';
+            document.getElementById('sequence').value = '';
+        }
+        
+        function updateTable() {
+            const table = document.getElementById('responses-table').getElementsByTagName('tbody')[0];
+            const countElement = document.getElementById('count');
+            
+            // Clear existing rows
+            table.innerHTML = '';
+            
+            // Add each response as a row
+            surveyResponses.forEach(response => {
+                const row = table.insertRow();
+                
+                // Add cells
+                const nameCell = row.insertCell(0);
+                const idCell = row.insertCell(1);
+                const sequenceCell = row.insertCell(2);
+                const timestampCell = row.insertCell(3);
+                
+                // Set cell values
+                nameCell.textContent = response.name;
+                idCell.textContent = response.studentId;
+                sequenceCell.textContent = response.sequence;
+                
+                // Format timestamp
+                const date = new Date(response.timestamp);
+                timestampCell.textContent = date.toLocaleString();
+            });
+            
+            // Update count
+            countElement.textContent = `(${surveyResponses.length})`;
+        }
+        
+        function exportToCSV() {
+            if (surveyResponses.length === 0) {
+                alert('No data to export');
+                return;
+            }
+            
+            // Create CSV content
+            let csvContent = 'name,student_id,timestamp,raw_response';
+            
+            // Add binary columns (for ML model)
+            for (let i = 1; i <= 30; i++) {
+                csvContent += `,q${i}`;
+            }
+            csvContent += '\n';
+            
+            // Add each response
+            surveyResponses.forEach(response => {
+                // Convert 1/2 sequence to 0/1 (for ML model)
+                const binaryResponses = response.sequence.split('').map(c => c === '1' ? '0' : '1');
+                
+                csvContent += `"${response.name}",${response.studentId},${response.timestamp},"${response.sequence}"`;
+                
+                // Add binary responses
+                binaryResponses.forEach(val => {
+                    csvContent += `,${val}`;
+                });
+                
+                csvContent += '\n';
+            });
+            
+            // Create download link
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.setAttribute('href', url);
+            a.setAttribute('download', `riasec_survey_data_${new Date().toISOString().slice(0,10)}.csv`);
+            a.style.display = 'none';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+        
+        function clearData() {
+            if (confirm('Are you sure you want to clear all data? This cannot be undone.')) {
+                surveyResponses = [];
+                localStorage.removeItem('riasecSurveyData');
+                updateTable();
+            }
+        }
+    </script>
+</body>
+</html>
